@@ -9,7 +9,7 @@ SAE reconciliation between vendor and EDC (Electronic Data Capture) systems for 
 ---
 
 ## Table of Contents
-- [Purpose] (#-purpose)
+- [Purpose](#-purpose)
 - [Features](#-features)
 - [Prerequisites](#%EF%B8%8F-prerequisites)
 - [Getting Started](#-getting-started)
