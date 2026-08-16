@@ -2,31 +2,25 @@
 SAE Reconciliation Output Comparison Script
 =============================================
 Compares a newly generated SAE Reconciliation output against the previous
-run's output (the one the data manager has already added comments to) and:
+run's output. Additionally does the following:
 
   1. Keeps every prior month's DM Comments column intact, under its
-     original label (e.g. "JUL2026 DM Comments"), realigned to the new
-     output's rows by identity -- and appends the new output's own blank
-     comments column (e.g. "AUG2026 DM Comments") after it. Comment
-     history accumulates one column per cycle rather than being
-     overwritten, so re-running this each month builds a running column
-     per review cycle.
-  2. Highlights, in the "Mismatching or Missing SAEs" tab of the merged
+     original label (e.g. "JUL2026 DM Comments") and appends the new output's 
+     own blank comments column (e.g. "AUG2026 DM Comments") after it. Comment
+     history accumulates one column per cycle and is not overwritten, so 
+     running this each month builds a new column per review cycle.
+  2. Highlights in the "Mismatching or Missing SAEs" tab of the merged
      result:
        - YELLOW  = row is new (no matching row existed in the previous output)
        - ORANGE  = row existed before, but a field (including Status)
                    changed since then
      Unhighlighted rows are unchanged from the previous run.
 
-Row identity = Subject Number + Source (EDC/Vendor) + the row's OWN record
+Row identity = Subject Number + Source (EDC/Vendor) + the row's own record
 ID (EDC Row # for an EDC-sourced row, Vendor Case # for a vendor-sourced
-row) -- not the counterpart's ID, which can appear/disappear between runs
-as match status changes. This requires the reconciliation script's
-"Source" column; if either file predates that column, identity falls back
-to a best-effort scheme using whichever ID is present.
+row).
 
-The "Matching SAEs" tab is carried through from the new output as-is (no
-comments/highlighting -- it has no DM Comments column to begin with).
+The "Matching SAEs" tab is carried through from the new output as-is.
 
 Requirements:
     pip install pandas openpyxl
@@ -50,15 +44,8 @@ CONFIG = {
     "matching_sheet": "Matching SAEs",
     "mismatch_sheet": "Mismatching or Missing SAEs",
 
-    # Row identity depends on which side the row came from ("Source"):
-    # an EDC-sourced row is identified by its own EDC Row #, a
-    # vendor-sourced row by its own Vendor Case #. Deliberately NOT the
-    # other side's ID -- that can appear or disappear between runs (e.g.
-    # a "Missing in vendor" EDC row later gains a Vendor Case # once a
-    # match is found), and the row should still be recognized as the same
-    # underlying record when that happens.
-    "added_fill_color": "FFFF00",    # yellow -- new row
-    "changed_fill_color": "FFC000",  # orange -- existing row, field(s) changed
+    "added_fill_color": "FFFF00",    # yellow - new row
+    "changed_fill_color": "FFC000",  # orange - existing row, field(s) changed
 }
 
 
@@ -70,7 +57,7 @@ def normalize_identity_value(v):
     if pd.isna(v):
         return ""
     s = str(v).strip()
-    s = re.sub(r"\.0+$", "", s)  # "104.0" and "104" should be treated the same
+    s = re.sub(r"\.0+$", "", s)  # "104.0" and "104" are congruent
     return s
 
 
@@ -84,8 +71,8 @@ def row_identity(row, has_source):
             return ("EDC", subject, normalize_identity_value(row.get("EDC Row #")))
         elif source == "Vendor":
             return ("Vendor", subject, normalize_identity_value(row.get("Vendor Case #")))
-    # Fallback if Source is missing from a file (e.g. an older output):
-    # best effort using whichever ID is present.
+    # Fallback if Source column is missing from a file (e.g. an older output).
+    # Best effort using whichever ID is present.
     edc_row = normalize_identity_value(row.get("EDC Row #"))
     case_num = normalize_identity_value(row.get("Vendor Case #"))
     if edc_row:
@@ -94,8 +81,8 @@ def row_identity(row, has_source):
 
 
 def find_comments_columns(columns):
-    """Comments columns are labeled with the run month, e.g.
-    'AUG2026 DM Comments' -- match on the fixed suffix, in file order.
+    """Comments columns are labeled with the current month, e.g.
+    'AUG2026 DM Comments'match on the fixed suffix, in file order.
     A file may have more than one if it's already the product of a
     previous comparison run."""
     return [c for c in columns if str(c).strip().endswith("DM Comments")]
@@ -147,17 +134,17 @@ def main():
         raise ValueError(f"No '... DM Comments' column found in {cfg['new_output_file']}")
 
     all_comment_cols = set(prev_comment_cols) | set(new_comment_cols)
-    # Columns to check for a "changed" row -- everything except the
-    # run-specific Obs number and any comments column (old or new; a
-    # comment being added/edited is not a data discrepancy).
+    # Columns to check for a changed row. Everything except the
+    # run-specific Obs number and any comments column (a comment being 
+    # added/edited is not a data discrepancy).
     compare_cols = [c for c in new_df.columns if c not in all_comment_cols and c != "Obs"]
 
-    # Final comment column order: all historical columns first (in their
-    # original order), then any new-file columns not already present --
-    # normally just this cycle's fresh blank one. If the same label shows
+    # Final comment column order: all historical columns first in their
+    # original order, then any new-file columns not already present
+    # (typically this cycle's blank comment column). If the same label shows
     # up in both files (e.g. reconciliation re-run within the same month
     # before the DM finished the previous review), it's treated as one
-    # column: whatever's already typed in the new file wins, otherwise the
+    # column. Whatever is in the new file will be maintained, otherwise the
     # old value is carried forward.
     ordered_comment_cols = list(prev_comment_cols)
     for c in new_comment_cols:
@@ -180,7 +167,7 @@ def main():
             new_val = new_row.get(col) if col in new_df.columns else None
             has_new_val = not (pd.isna(new_val) or str(new_val).strip() == "")
             if has_new_val:
-                carried[col].append(new_val)  # don't clobber something already typed
+                carried[col].append(new_val)  
             elif prev_row is not None:
                 carried[col].append(prev_row.get(col))
             else:
