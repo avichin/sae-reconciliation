@@ -1,18 +1,19 @@
 """
-SAE Reconciliation Script -- Multi-Product Trial
+SAE Reconciliation Script - Multi-Product Trial
 ===================================================
 Variant of the standard SAE reconciliation script for trials with more
-than one investigational product, where:
+than one investigational product. Developed specifically for certain 
+file formats as outlined below. 
 
-  - The VENDOR file has one row per (SAE case, product) combination --
-    the same case is duplicated across multiple rows, with case-level
+  - The VENDOR file has one row per (SAE record, product) combination.
+    The same record is duplicated across multiple rows with case-level
     fields (dates, outcome, seriousness criteria, etc.) repeating
-    identically, and only the product identifier, Action Taken, and
+    identically, and only the product name, Action Taken, and
     Relationship to Study Drug varying per row.
-  - The EDC "Adverse Event Form" has one row per AE, with SEPARATE Action
+  - The EDC "Adverse Events Form" has one row per AE, with SEPARATE Action
     Taken and Relationship to Study Drug columns per product.
 
-Output is the same two-tab structure as the standard script ("Matching
+The output is the same two-tab structure as the standard script ("Matching
 SAEs" / "Mismatching or Missing SAEs"), except Action Taken and
 Relationship to Study Drug each become one column PER PRODUCT instead of
 a single column.
@@ -34,17 +35,18 @@ from openpyxl.styles import Alignment, PatternFill
 # =========================================================================
 
 CONFIG = {
-    "ae_file": "ae_listing.csv",
-    "vendor_file": "vendor_sae_listing.csv",
+    "ae_file": "ae_listing.csv",              # Replace with your EDC AE file
+    "vendor_file": "vendor_sae_listing.csv",  # Replace with your vendor SAE file
     "output_file": "SAE_Reconciliation_Report.xlsx",
-    # Set to 1 if this vendor file turns out to have a title row above the
-    # real headers (as your other trial's did) -- nothing in the column
-    # list given suggested that here, so defaulting to a standard header.
+
+    # Vendor file's column headers are on the 1st row of the file. Change if there are 
+    # multiple header rows. 
     "vendor_header_row": 0,
 
-    # --- EDC "Adverse Event Form" columns (case-level only; per-product
+    # --- EDC listing columns (case-level only; per-product
     # Action Taken / Relationship fields are configured separately below
     # under "products") ---
+    # Replace with actual EDC column names
     "ae_columns": {
         "subject_id": "SUBJECT_ID_COLUMN",
         "record_position": "RECORD_POSITION_COLUMN",
@@ -67,6 +69,7 @@ CONFIG = {
 
     # --- Vendor SAE listing columns (case-level; "causality" and
     # "action_taken" here are the columns read from EACH product-row) ---
+    # Replace with actual vendor column names
     "vendor_columns": {
         "case_number": "VENDOR_CASE_NUMBER_COLUMN",
         "subject_id": "VENDOR_SUBJECT_ID_COLUMN",
@@ -89,20 +92,16 @@ CONFIG = {
         "crit_other_specify": None,
         "causality": "VENDOR_CAUSALITY_COLUMN",
         "action_taken": "VENDOR_ACTION_TAKEN_COLUMN",
-        # Used only to filter which rows are considered at all (see
-        # "required_study_id" below) -- study ID itself is not reconciled
-        # against anything on the EDC side.
+        # Used to filter which rows are considered at all.
+        # Study ID itself is not reconciled.
         "study_id": "VENDOR_STUDY_ID_COLUMN",
     },
 
     # Vendor rows whose study ID doesn't match this value are dropped
-    # entirely before reconciliation -- they aren't a "mismatch", they
-    # simply don't belong to this study and shouldn't be considered.
-    "required_study_id": "YOUR_STUDY_ID",
+    # entirely before reconciliation.
+    "required_study_id": "STUDY_ID",
 
-    # Canonical products for this trial, and where each one's Action Taken
-    # / Relationship to Study Drug live on the EDC side. Order here drives
-    # output column order.
+    # Replace with actual column names.
     "products": {
         "Product A": {"action_taken_col": "PRODUCT_A_ACTION_TAKEN_COLUMN", "causality_col": "PRODUCT_A_CAUSALITY_COLUMN"},
         "Product B": {"action_taken_col": "PRODUCT_B_ACTION_TAKEN_COLUMN", "causality_col": "PRODUCT_B_CAUSALITY_COLUMN"},
@@ -110,10 +109,10 @@ CONFIG = {
         "Product D": {"action_taken_col": "PRODUCT_D_ACTION_TAKEN_COLUMN", "causality_col": "PRODUCT_D_CAUSALITY_COLUMN"},
     },
 
-    # Vendor product-name values that should be treated as one of the
-    # canonical products above (e.g. brand name -> generic/study name).
-    # Matching against these and against the canonical names themselves
-    # is case-insensitive/trimmed regardless.
+    # Vendor files occasionally use different naming conventions 
+    # (brand name vs. generic). Replace with the actual product names
+    # and values if needed. If not needed (vendor naming matches EDC 
+    # naming), either exclude or replace with the same values.
     "product_synonyms": {
         "BRAND_NAME_FOR_PRODUCT_C": "Product C",
         "BRAND_NAME_FOR_PRODUCT_D": "Product D",
@@ -124,7 +123,7 @@ CONFIG = {
 
 
 # =========================================================================
-# 2. VALUE CROSSWALKS (same concept as the single-product script; these
+# 2. VALUE CROSSWALKS (Same concept as the single-product script. These
 # apply per-product to Action Taken / Relationship as well as to the
 # case-level CTCAE Grade / Outcome fields)
 # =========================================================================
@@ -385,8 +384,8 @@ def compare_matched_pair(ae_row, v_case, ac, vc, cfg):
             mismatched.append(FIELD_STATUS_LABELS.get(field, field))
 
     # Per-product Action Taken / Relationship to Study Drug.
-    # If the vendor doesn't list a given product for this case at all,
-    # that product is simply not reconciled -- skip it regardless of
+    # If the vendor doesn't list a given product for an SAE,
+    # that product is not reconciled. Skip it regardless of
     # what EDC has for it.
     product_values = v_case.get("_product_values", {}) or {}
     for product, pcols in cfg["products"].items():

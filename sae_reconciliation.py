@@ -1,7 +1,7 @@
 """
 SAE Reconciliation Script
 ==========================
-Compares Serious Adverse Events (SAEs) in the EDC "Adverse Event Form"
+Compares Serious Adverse Events (SAEs) in the EDC AE (Adverse Events) form 
 listing against the vendor's SAE listing.
 
 Output is a single Excel workbook with two tabs:
@@ -35,20 +35,22 @@ from openpyxl.styles import Alignment
 # =========================================================================
 
 CONFIG = {
-    "ae_file": "ae_listing.csv",              # EDC Adverse Event Form export
-    "vendor_file": "vendor_sae_listing.csv",  # vendor SAE listing
+    "ae_file": "ae_listing.csv",              # Replace with your EDC AE file
+    "vendor_file": "vendor_sae_listing.csv",  # Replace with your vendor SAE file
     "output_file": "SAE_Reconciliation_Report.xlsx",
 
-    # Vendor file's column headers are on the 2nd physical row (row 1 is
-    # something else, e.g. a title row) -- 0-indexed for pandas, so 1 means
-    # "row 2 is the header". Change to 0 if this isn't the case for a given
-    # export.
-    "vendor_header_row": 1,
+    # Vendor file's column headers are on the 1st row of the file. Change if there are 
+    # multiple header rows. 
+    "vendor_header_row": 0,
 
-    # --- EDC "Adverse Event Form" columns ---
+    # --- EDC listing columns ---
+    # Replace with actual EDC column names
     "ae_columns": {
         "subject_id": "SUBJECT_ID_COLUMN",
-        "record_position": "RECORD_POSITION_COLUMN",   # source of the "EDC Row #" output column
+        # Created for EDC systems that do not allow for case numbers. If the case number
+        # value exists and can be reconciled against vendor-assigned case number,
+        # include it here.
+        "record_position": "RECORD_POSITION_COLUMN",   
         "ae_term": "AE_TERM_COLUMN",
         "ae_pt": "AE_PREFERRED_TERM_COLUMN",
         "start_date": "AE_START_DATE_COLUMN",
@@ -68,10 +70,10 @@ CONFIG = {
         "action_taken": "ACTION_TAKEN_COLUMN",
     },
 
-    # --- Vendor SAE listing columns ---
+    # --- Vendor listing columns ---
+    # Replace with actual vendor column names
     "vendor_columns": {
-        # Vendor-assigned case number. EDC has no equivalent field, so it
-        # can't be a match key -- it's carried through for traceability.
+        # Vendor-assigned case number. 
         "case_number": "VENDOR_CASE_NUMBER_COLUMN",
         "subject_id": "VENDOR_SUBJECT_ID_COLUMN",
         "ae_term": "VENDOR_AE_TERM_COLUMN",
@@ -96,23 +98,18 @@ CONFIG = {
     # --- Matching tolerance ---
     # Two records are considered the SAME SAE based on Subject + AE
     # Preferred Term similarity alone. Start Date is intentionally NOT a
-    # gating criterion -- a large date discrepancy should show up as a
-    # "Start date mismatch" on a matched pair, not cause the pair to be
-    # treated as two unrelated (missing/extra) records. Date is only used
-    # to disambiguate when a subject has more than one similarly-worded
-    # AE candidate on the vendor side.
+    # gating criterion, it is a common discrepancy for records to have 
+    # mismatching start dates.
+    # The Start Date is only used to disambiguate when a subject has more 
+    # than one similarly-worded AE record on the vendor side.
     "term_similarity_threshold": 0.80,   # 0-1 cutoff for fuzzy AE term match
 }
 
 
 # =========================================================================
 # 2. VALUE CROSSWALKS
-# Vendor and EDC use different labels for the same coded concepts, but the
-# numbering in your spec lines up 1:1 in meaning. These maps normalize a
-# numeric code (e.g. "3") or a text label (e.g. "Severe") to the same
-# canonical integer so the two systems can be compared for the purpose of
-# deciding "Matching" vs "Mismatching" -- the RAW values are always what
-# gets written to the output tabs, this is only used for comparison logic.
+# Vendor and EDC use different labels for the same fields. Update this portion
+# according to the specific vendor and EDC specification.
 # =========================================================================
 
 CODE_LABEL_MAPS = {
@@ -160,8 +157,8 @@ DATE_FIELDS = ["start_date", "end_date"]
 
 YES_VALUES = {"y", "yes", "1", "true", "checked", "x", "serious"}
 
-# Human-readable label used to build the "Status" column, e.g. a mismatch
-# on "start_date" becomes "Start date mismatch" in the output.
+# The mismatching SAEs will be labeled by a human-readable Status that lists the 
+# discrepancies found.  
 FIELD_STATUS_LABELS = {
     "ctcae_grade": "CTCAE Grade",
     "outcome": "Outcome",
@@ -245,7 +242,7 @@ def _clean_text(s):
         return ""
     s = str(s).strip().lower()
     s = re.sub(r"[^a-z0-9/ .:-]", "", s)
-    s = re.sub(r"\s*/\s*", "/", s)  # 'recovered/ resolved' == 'recovered/resolved'
+    s = re.sub(r"\s*/\s*", "/", s)  
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
@@ -460,7 +457,7 @@ def reconcile(sae_df, vendor_df, cfg):
 
             if candidates:
                 # Best term match wins; closer start date breaks ties among
-                # equally-worded candidates. Date is never a reason to fail
+                # equally-worded records. Date is never a reason to fail
                 # a match outright.
                 candidates.sort(key=lambda c: (-round(c[0], 4), c[1]))
                 _, _, v_idx, v_row = candidates[0]
@@ -469,9 +466,8 @@ def reconcile(sae_df, vendor_df, cfg):
                 mismatched_fields = compare_matched_pair(ae_row, v_row, ac, vc)
                 if mismatched_fields:
                     status = build_status_string(mismatched_fields)
-                    # Both records genuinely exist and are linked -- show
-                    # both identifiers (Case # and EDC Row #) on BOTH rows,
-                    # even though the content fields differ per side.
+                    # Both records genuinely exist and are linked.
+                    # Both Case # and EDC Row # are listed on BOTH rows.
                     edc_row_num = ae_row.get(ac.get("record_position"))
                     vendor_case_num = v_row.get(vc.get("case_number"))
                     mismatch_rows.append(build_edc_row(ae_row, ac, status, vendor_case_number=vendor_case_num))
