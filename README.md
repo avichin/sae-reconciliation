@@ -4,7 +4,6 @@ SAE reconciliation between vendor and EDC (Electronic Data Capture) systems for 
 
 
 <!-- Add visual anchors or relevant status badges below -->
-[![Build Status](https://shields.io)](#)
 [![License: GNU GLP v3.0](https://shields.io)](LICENSE)
 
 ---
